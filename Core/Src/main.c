@@ -21,7 +21,10 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "driver_display.h"
+#include "driver_display_characters.h"
 
+#include "driver_sensor.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -114,22 +117,28 @@ int main(void)
 
   display_init(&display);
 
-  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_0_MIN);
-  display_writeData(&display, 'a');
-  display_writeData(&display, 'g');
-  display_writeData(&display, 'o');
-  display_writeData(&display, 0b11000000);
-  display_writeData(&display, 0b00010000);
-  display_writeData(&display, 'l');
+
+  Sensor sensor = {
+		.gpiox = GPIOC,
+		.pin = GPIO_PIN_7,
+		.timer = &htim4
+  };
+  HAL_TIM_Base_Start(sensor.timer);
+
+  SensorData sensorData = {0};
+  bool sensorResult = sensor_read(&sensor, &sensorData);
+  //sensor_delay(&sensor, 2);
 
 
-  display_instruction_cursorOrDisplayShift(&display, true, true);
-  display_instruction_cursorOrDisplayShift(&display, true, true);
-  display_instruction_cursorOrDisplayShift(&display, true, true);
-  display_instruction_cursorOrDisplayShift(&display, true, true);
+  //__HAL_TIM_SET_COUNTER(sensor.timer, 0);
+  //HAL_Delay(0);
+  //int timerValue = __HAL_TIM_GET_COUNTER(sensor.timer);
 
-  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_0_MIN);
-  display_writeData(&display, 'a');
+  char buffer[256] = {0};
+  sprintf(buffer, "%d %d %d %d %d %d", sensorResult, sensorData.data[0], sensorData.data[1],
+		  sensorData.data[2], sensorData.data[3], sensorData.data[4]);
+  //sprintf(buffer, "delay %d", timerValue);
+  display_writeString(&display, buffer);
 
   /* USER CODE END 2 */
 
@@ -243,7 +252,7 @@ static void MX_TIM4_Init(void)
 
   /* USER CODE END TIM4_Init 1 */
   htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 0;
+  htim4.Init.Prescaler = 49;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim4.Init.Period = 65535;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
@@ -288,11 +297,11 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_SET);
 
   /*Configure GPIO pin : PC7 */
   GPIO_InitStruct.Pin = GPIO_PIN_7;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
