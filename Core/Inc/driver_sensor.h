@@ -37,4 +37,6 @@ uint8_t sensor_readByte(Sensor *sensor);
 
 bool sensor_read(Sensor *sensor, SensorData *result);
 
+bool sensor_validate(SensorData data);
+
 #endif /* INC_DRIVER_SENSOR_H_ */

@@ -20,7 +20,7 @@ bool sensor_readBit(Sensor *sensor) {
 		state = HAL_GPIO_ReadPin(sensor->gpiox, sensor->pin);
 	}
 
-	sensor_delay(sensor, 30);
+	sensor_delay(sensor, 33);
 	state = HAL_GPIO_ReadPin(sensor->gpiox, sensor->pin);
 	if(state == GPIO_PIN_RESET) {
 		return false;
@@ -71,4 +71,10 @@ bool sensor_read(Sensor *sensor, SensorData *result) {
 	}
 
 	return true;
+}
+
+bool sensor_validate(SensorData data) {
+	uint16_t sum = data.data[0] + data.data[1] + data.data[2] + data.data[3];
+	uint8_t capSum = (uint8_t)(sum & 0xff);
+	return capSum == data.checksum;
 }

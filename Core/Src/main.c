@@ -18,9 +18,12 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "usb_device.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "usbd_cdc_if.h"
+
 #include "driver_display.h"
 #include "driver_display_characters.h"
 
@@ -34,7 +37,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+extern void initialise_monitor_handles();
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -48,7 +51,6 @@ I2C_HandleTypeDef hi2c1;
 TIM_HandleTypeDef htim4;
 
 /* USER CODE BEGIN PV */
-
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -82,7 +84,7 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-
+  //initialise_monitor_handles();
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -96,17 +98,18 @@ int main(void)
   MX_GPIO_Init();
   MX_I2C1_Init();
   MX_TIM4_Init();
+  MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
   HAL_Delay(500);
 
   Display display = {
 		.config = {
-		  	.twoLinesInsteadOfOne = false,
-		  	.tallFont = true,
+		  	.twoLinesInsteadOfOne = true,
+		  	.tallFont = false,
 
 		  	.displayOn = true,
-		  	.cursorVisible = true,
-		  	.cursorBlinking = true,
+		  	.cursorVisible = false,
+		  	.cursorBlinking = false,
 
 		  	.incrementInsteadOfDecrement = true,
 		  	.shiftOnEntry = false
@@ -125,27 +128,53 @@ int main(void)
   };
   HAL_TIM_Base_Start(sensor.timer);
 
-  SensorData sensorData = {0};
-  bool sensorResult = sensor_read(&sensor, &sensorData);
-  //sensor_delay(&sensor, 2);
-
-
-  //__HAL_TIM_SET_COUNTER(sensor.timer, 0);
-  //HAL_Delay(0);
-  //int timerValue = __HAL_TIM_GET_COUNTER(sensor.timer);
-
-  char buffer[256] = {0};
-  sprintf(buffer, "%d %d %d %d %d %d", sensorResult, sensorData.data[0], sensorData.data[1],
-		  sensorData.data[2], sensorData.data[3], sensorData.data[4]);
-  //sprintf(buffer, "delay %d", timerValue);
-  display_writeString(&display, buffer);
+  while (CDC_Transmit_FS("time,rh,t,error\n", 16) == USBD_BUSY) {
+      HAL_Delay(1);
+  }
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
+  uint32_t time = 0;
+  uint32_t timeDelayMs = 3000;
   while (1)
   {
+
+	display_instruction_clearDisplay(&display);
+
+	SensorData sensorData = {0};
+	bool sensorResult = sensor_read(&sensor, &sensorData);
+	sensorResult = sensorResult && sensor_validate(sensorData);
+
+    char buffer[256] = {0};
+	if(sensorResult) {
+
+		display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_0_MIN);
+
+		sprintf(buffer, "Humidity: %d%%", sensorData.rh_integral);
+		display_writeString(&display, buffer);
+
+
+		display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_1_MIN);
+
+		sprintf(buffer, "Temperature: %dC", sensorData.t_integral);
+		display_writeString(&display, buffer);
+	}
+	else {
+
+	}
+
+
+	size_t csvLen = sprintf(buffer, "%d,%d,%d,%d\n", time, sensorData.rh_integral, sensorData.t_integral, !sensorResult);
+	while (CDC_Transmit_FS(buffer, csvLen) == USBD_BUSY) {
+		HAL_Delay(1);
+	}
+
+
+	HAL_Delay(timeDelayMs);
+	time += timeDelayMs;
 
     /* USER CODE END WHILE */
 
@@ -176,9 +205,9 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = 4;
-  RCC_OscInitStruct.PLL.PLLN = 50;
+  RCC_OscInitStruct.PLL.PLLN = 72;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
-  RCC_OscInitStruct.PLL.PLLQ = 4;
+  RCC_OscInitStruct.PLL.PLLQ = 3;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -193,7 +222,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
   {
     Error_Handler();
   }
@@ -252,7 +281,7 @@ static void MX_TIM4_Init(void)
 
   /* USER CODE END TIM4_Init 1 */
   htim4.Instance = TIM4;
-  htim4.Init.Prescaler = 49;
+  htim4.Init.Prescaler = 71;
   htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim4.Init.Period = 65535;
   htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;

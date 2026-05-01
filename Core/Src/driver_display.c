@@ -137,7 +137,6 @@ void display_instruction_setDisplayRamAddress(Display *display, uint8_t address)
 
 
 void display_writeString(Display *display, char *s) {
-	display_instruction_setDisplayRamAddress(display, 0);
 	size_t l = strlen(s);
 	for(int i = 0; i < l; i++) {
 		display_writeData(display, s[i]);
