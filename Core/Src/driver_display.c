@@ -136,10 +136,42 @@ void display_instruction_setDisplayRamAddress(Display *display, uint8_t address)
 
 
 
-void display_writeString(Display *display, char *s) {
-	size_t l = strlen(s);
+void display_writeString(Display *display, char *s, int length) {
+	size_t l = length == -1 ? strlen(s) : (size_t)length;
 	for(int i = 0; i < l; i++) {
 		display_writeData(display, s[i]);
+	}
+}
+
+void display_writeChar(Display *display, char c) {
+	display_writeData(display, c);
+}
+
+int display_writeCharOnLine(Display *display, int line, int pos, char c, bool looping) {
+	uint8_t min = line == 0 ? DISPLAY_LINE_0_MIN : DISPLAY_LINE_1_MIN;
+	uint8_t max = line == 0 ? DISPLAY_LINE_0_MAX : DISPLAY_LINE_1_MAX;
+
+	if(!looping) {
+		display_instruction_setDisplayRamAddress(display, min + pos);
+	}
+
+	if((min + pos) > max) {
+		display_instruction_setDisplayRamAddress(display, min);
+		pos = 0;
+	}
+
+	display_writeData(display, c);
+	pos += 1;
+	return pos;
+}
+
+void display_writeStringOnLine(Display *display, int line, int pos, char *s, int length) {
+	if(display->config.twoLinesInsteadOfOne) {
+		uint8_t min = line == 0 ? DISPLAY_LINE_0_MIN : DISPLAY_LINE_1_MIN;
+		display_instruction_setDisplayRamAddress(display, min + pos);
+		for(int i = 0; i < length; i++) {
+			pos = display_writeCharOnLine(display, line, pos, s[i], true);
+		}
 	}
 }
 

@@ -108,8 +108,8 @@ int main(void)
 		  	.tallFont = false,
 
 		  	.displayOn = true,
-		  	.cursorVisible = false,
-		  	.cursorBlinking = false,
+		  	.cursorVisible = true,
+		  	.cursorBlinking = true,
 
 		  	.incrementInsteadOfDecrement = true,
 		  	.shiftOnEntry = false
@@ -137,44 +137,87 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-  uint32_t time = 0;
-  uint32_t timeDelayMs = 3000;
+  char *text =
+		  "Once upon a time, a LEGEND was whispered among shadows. "
+		  "It was a LEGEND of HOPE. "
+		  "It was a LEGEND of DREAMS. "
+		  "It was a LEGEND of LIGHT. "
+		  "It was a LEGEND of DARK. "
+		  "This is the legend of DELTA RUNE.";
+  uint32_t textConsumed = 0;
+
+  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_0_MIN);
+  display_writeString(&display, text, DISPLAY_LINE_LEN);
+  textConsumed += DISPLAY_LINE_LEN;
+
+  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_1_MIN);
+
+  int currentShift = 0;
+  bool shiftActivated = false;
+
+  int charactersTyped = 0;
+
+  int hiddenStart = 0;
+
+
   while (1)
   {
+	  extern uint8_t CDC_buffer[1024];
+	  extern uint32_t CDC_length;
+	  extern uint8_t CDC_ready;
 
-	display_instruction_clearDisplay(&display);
+	  if(!CDC_ready) {
+		  continue;
+	  }
+	  CDC_ready = 0;
 
-	SensorData sensorData = {0};
-	bool sensorResult = sensor_read(&sensor, &sensorData);
-	sensorResult = sensorResult && sensor_validate(sensorData);
+	  for(int i = 0; i < CDC_length; i++) {
+		  if(CDC_buffer[i] != text[charactersTyped]) {
+			  continue;
+		  }
 
-    char buffer[256] = {0};
-	if(sensorResult) {
+		  display_writeChar(&display, CDC_buffer[i]);
+		  charactersTyped += 1;
 
-		display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_0_MIN);
+		  if(charactersTyped % DISPLAY_LINE_LEN == 0) {
+			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_1_MIN);
+		  }
 
-		sprintf(buffer, "Humidity: %d%%", sensorData.rh_integral);
-		display_writeString(&display, buffer);
+		  if(shiftActivated) {
+			  currentShift += 1;
+			  currentShift %= DISPLAY_LINE_LEN;
+		  }
+
+		  if((currentShift + DISPLAY_VISIBLE_LINE_LEN) % DISPLAY_LINE_LEN == hiddenStart) {
+			  int len = DISPLAY_LINE_LEN - DISPLAY_VISIBLE_LINE_LEN;
+
+			  display_instruction_entryModeSet(&display, true, false);
+
+			  display_writeStringOnLine(&display, 0, hiddenStart, &text[textConsumed], len);
+			  textConsumed += len;
+
+			  int pos = hiddenStart;
+			  display_instruction_setDisplayRamAddress(&display, pos + DISPLAY_LINE_1_MIN);
+			  for(int i = 0; i < len; i++)  {
+				  pos = display_writeCharOnLine(&display, 1, pos, ' ', true);
+			  }
+
+			  display_instruction_setDisplayRamAddress(&display, (charactersTyped % DISPLAY_LINE_LEN) + DISPLAY_LINE_1_MIN);
+
+			  display_instruction_entryModeSet(&display, true, shiftActivated);
+			  hiddenStart = currentShift;
+			  hiddenStart %= DISPLAY_LINE_LEN;
+		  }
+
+		  // NOTE: this looks incredibly ugly lol
+		  if(!shiftActivated && charactersTyped > 4) {
+			  shiftActivated = true;
+
+			  display_instruction_entryModeSet(&display, true, shiftActivated);
+		  }
+	  }
 
 
-		display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_1_MIN);
-
-		sprintf(buffer, "Temperature: %dC", sensorData.t_integral);
-		display_writeString(&display, buffer);
-	}
-	else {
-
-	}
-
-
-	size_t csvLen = sprintf(buffer, "%d,%d,%d,%d\n", time, sensorData.rh_integral, sensorData.t_integral, !sensorResult);
-	while (CDC_Transmit_FS(buffer, csvLen) == USBD_BUSY) {
-		HAL_Delay(1);
-	}
-
-
-	HAL_Delay(timeDelayMs);
-	time += timeDelayMs;
 
     /* USER CODE END WHILE */
 

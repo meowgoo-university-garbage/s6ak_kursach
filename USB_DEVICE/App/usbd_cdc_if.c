@@ -109,6 +109,13 @@ extern USBD_HandleTypeDef hUsbDeviceFS;
 
 /* USER CODE BEGIN EXPORTED_VARIABLES */
 
+// NOTE: make it ring buffer?
+uint8_t CDC_buffer[1024];
+uint32_t CDC_length;
+uint8_t CDC_ready = 0;
+uint8_t CDC_connected = 0;
+
+
 /* USER CODE END EXPORTED_VARIABLES */
 
 /**
@@ -128,6 +135,9 @@ static int8_t CDC_TransmitCplt_FS(uint8_t *pbuf, uint32_t *Len, uint8_t epnum);
 
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_DECLARATION */
 uint8_t CDC_Transmit_FS(uint8_t *buf, uint16_t len);
+
+
+
 /* USER CODE END PRIVATE_FUNCTIONS_DECLARATION */
 
 /**
@@ -260,6 +270,16 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
 static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 {
   /* USER CODE BEGIN 6 */
+
+  if(strncmp(Buf, "CONNECTION_STRING", *Len) == 0) {
+	  CDC_connected = 1;
+  }
+  else if(CDC_connected) {
+	  memcpy(CDC_buffer, Buf, *Len);
+	  CDC_length = *Len;
+	  CDC_ready = 1;
+  }
+
   USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
   USBD_CDC_ReceivePacket(&hUsbDeviceFS);
   return (USBD_OK);
