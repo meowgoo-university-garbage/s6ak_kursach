@@ -156,8 +156,8 @@ int display_writeCharOnLine(Display *display, int line, int pos, char c, bool lo
 	}
 
 	if((min + pos) > max) {
-		display_instruction_setDisplayRamAddress(display, min);
-		pos = 0;
+		pos %= (max - min + 1);
+		display_instruction_setDisplayRamAddress(display, min + pos);
 	}
 
 	display_writeData(display, c);

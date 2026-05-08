@@ -39,6 +39,9 @@ typedef enum {
 	NAV_TYPERACER_SETTINGS,
 	NAV_TYPERACER_PLAYING,
 	NAV_TYPERACER_RESULTS,
+
+	NAV_DINO_PLAYING,
+	NAV_DINO_RESULTS,
 } NavState;
 
 typedef struct {
@@ -72,6 +75,24 @@ typedef struct {
 
 	int mistakeCount;
 } TyperacerState;
+
+typedef struct {
+	float speed;
+
+	size_t time_passed;
+	size_t time_next;
+	size_t time_step;
+
+	size_t time_lastCrouch;
+	size_t time_lastJump;
+	uint8_t lastState;
+
+	uint16_t pteros;
+	uint16_t cacti;
+
+	int pos;
+	int frame;
+} DinoState;
 
 /* USER CODE END PTD */
 
@@ -218,19 +239,43 @@ int main(void)
   TyperacerSettings settings_tr = {
 		  .moving = false,
 		  .overwrite = true,
-		  .text = 0,
+		  .text = 0xff,
   };
   TyperacerState state_tr = {0};
+  DinoState state_dino = {0};
 
   MenuState state_menu = {0};
+
+  char *texts[] = {
+		  "Once upon a time, a LEGEND was whispered among shadows. "
+		  "It was a LEGEND of HOPE. "
+		  "It was a LEGEND of DREAMS. "
+		  "It was a LEGEND of LIGHT. "
+		  "It was a LEGEND of DARK. "
+		  "This is the legend of DELTA RUNE.",
+
+		  "amogus",
+
+		  "sus",
+
+		  "aboba",
+
+		  "gg",
+  };
+
 
   MenuGame games[] = {
 		  {
 				.name = "Typeracer",
 				.initState = NAV_TYPERACER_PLAYING,
 		  },
+		  {
+				.name = "Dinosaur",
+				.initState = NAV_DINO_PLAYING,
+		  }
   };
   int gameCount = sizeof(games) / sizeof(MenuGame);
+
 
 
   bool firstState = true;
@@ -325,6 +370,8 @@ int main(void)
 		  break;
 	  case NAV_TYPERACER_PLAYING:
   		  if(justChangedState) {
+			  srand(__HAL_TIM_GET_COUNTER(&htim2));
+
   			  if(settings_tr.moving && settings_tr.overwrite) {
   				  settings_tr.overwrite = false;
   			  }
@@ -335,14 +382,14 @@ int main(void)
 			  display_instruction_entryModeSet(&display, true, false);
 
   			  state_tr = (TyperacerState){0};
-  			  state_tr.text =
-  					  "Once upon a time, a LEGEND was whispered among shadows. "
-  					  "It was a LEGEND of HOPE. "
-  					  "It was a LEGEND of DREAMS. "
-  					  "It was a LEGEND of LIGHT. "
-  					  "It was a LEGEND of DARK. "
-  					  "This is the legend of DELTA RUNE.";
-  			  state_tr.text = "amogus";
+
+  			  if(settings_tr.text == 0xff) {
+  				  state_tr.text = texts[rand() % (sizeof(texts) / sizeof(char *))];
+  			  }
+  			  else {
+  				  state_tr.text = texts[settings_tr.text];
+  			  }
+
   			  state_tr.textLength = strlen(state_tr.text);
 
   			  if(settings_tr.moving) {
@@ -499,6 +546,153 @@ int main(void)
 
 		  if(!tryReadInput(&input, 1, true)) continue;
 
+
+		  if(input == ' ') {
+			  CHANGE_STATE(NAV_MENU);
+		  }
+
+		  break;
+
+
+
+
+
+
+
+
+#define DINO_RUNNING_1 0b10110101
+#define DINO_RUNNING_2 0b11001000
+
+#define DINO_JUMPING   0b10110110
+
+#define DINO_CROUCHING 0b11011101
+
+#define DINO_CACTUS    0b10110111
+#define DINO_PTERO     0b11101010
+
+	  case NAV_DINO_PLAYING:
+		  if(justChangedState) {
+			  srand(__HAL_TIM_GET_COUNTER(&htim2));
+
+	  		  __HAL_TIM_SET_COUNTER(&htim2, 0);
+			  state_dino = (DinoState){
+				  .speed = 1,
+
+				  .time_passed = 0,
+				  .time_next = 0,
+				  .time_step = 1000,
+
+				  .lastState = DINO_RUNNING_1,
+
+				  .pos = 0,
+				  .frame = 0,
+			  };
+
+			  display_instruction_clearDisplay(&display);
+			  display_instruction_entryModeSet(&display, true, false);
+			  display_instruction_displayOnOffControl(&display, true, false, false);
+		  }
+
+
+		  size_t time = __HAL_TIM_GET_COUNTER(&htim2) / 1000;
+
+
+		  bool hasInput = tryReadInput(&input, 1, true);
+		  if(hasInput) {
+			  if(input == ' ' && (time - state_dino.time_lastJump > 3500) && (time - state_dino.time_lastCrouch > 500)) {
+				  state_dino.time_lastJump = time;
+			  }
+			  else if(input == 'c' &&  (time - state_dino.time_lastJump > 3500)) {
+				  state_dino.time_lastCrouch = time;
+			  }
+		  }
+
+
+		  if(state_dino.time_next > time) continue;
+
+		  state_dino.frame += 1;
+
+		  state_dino.time_next += state_dino.time_step;
+
+
+
+		  display_writeCharOnLine(&display, 0, state_dino.pos, ' ', false);
+		  display_writeCharOnLine(&display, 1, state_dino.pos, ' ', false);
+
+
+
+		  state_dino.pteros >>= 1;
+		  state_dino.cacti >>= 1;
+
+		  if((state_dino.cacti & 0b1000) && state_dino.lastState != DINO_JUMPING) {
+			  CHANGE_STATE(NAV_DINO_RESULTS);
+		  }
+
+		  if((state_dino.pteros & 0b1000) && state_dino.lastState != DINO_CROUCHING) {
+			  CHANGE_STATE(NAV_DINO_RESULTS);
+		  }
+
+
+
+		  if(time - state_dino.time_lastJump < 3000) {
+			  if(state_dino.lastState == DINO_RUNNING_1) {
+				  display_writeCharOnLine(&display, 1, state_dino.pos + 3, ' ', false);
+			  }
+
+			  state_dino.lastState = DINO_JUMPING;
+			  display_writeCharOnLine(&display, 0, state_dino.pos + 3, ' ', false);
+			  state_dino.pos = (state_dino.pos + 1) % DISPLAY_LINE_LEN;
+			  display_instruction_cursorOrDisplayShift(&display, true, false);
+			  display_writeCharOnLine(&display, 0, state_dino.pos + 3, DINO_JUMPING, false);
+		  }
+		  else if(time - state_dino.time_lastCrouch < 200) {
+			  if(state_dino.lastState == DINO_JUMPING) {
+				  display_writeCharOnLine(&display, 0, state_dino.pos + 3, ' ', false);
+			  }
+
+			  state_dino.lastState = DINO_CROUCHING;
+			  display_writeCharOnLine(&display, 1, state_dino.pos + 3, ' ', false);
+			  state_dino.pos = (state_dino.pos + 1) % DISPLAY_LINE_LEN;
+			  display_instruction_cursorOrDisplayShift(&display, true, false);
+			  display_writeCharOnLine(&display, 1, state_dino.pos + 3, DINO_CROUCHING, false);
+		  }
+		  else {
+			  if(state_dino.lastState == DINO_JUMPING) {
+				  display_writeCharOnLine(&display, 0, state_dino.pos + 3, ' ', false);
+			  }
+
+			  state_dino.lastState = DINO_RUNNING_1;
+			  display_writeCharOnLine(&display, 1, state_dino.pos + 3, ' ', false);
+			  state_dino.pos = (state_dino.pos + 1) % DISPLAY_LINE_LEN;
+			  display_instruction_cursorOrDisplayShift(&display, true, false);
+			  display_writeCharOnLine(&display, 1, state_dino.pos + 3, state_dino.frame % 2 == 0 ? DINO_RUNNING_1 : DINO_RUNNING_2, false);
+		  }
+
+
+		  // TODO: this often results in unwinnable situations
+		  {
+			  bool cactus = (rand() % 100) < 7;
+			  if(cactus) {
+				  display_writeCharOnLine(&display, 1, state_dino.pos + 15, DINO_CACTUS, false);
+				  state_dino.cacti  |= 0b1000000000000000;
+			  }
+
+			  bool ptero = (rand() % 100) < 7;
+			  if(ptero && !cactus) {
+				  display_writeCharOnLine(&display, 0, state_dino.pos + 15, DINO_PTERO, false);
+				  state_dino.pteros |= 0b1000000000000000;
+			  }
+		  }
+
+		  break;
+
+	  case NAV_DINO_RESULTS:
+		  if(justChangedState) {
+			  display_writeStringOnLine(&display, 0, state_dino.pos + 15 - 4, " GAME", 5);
+			  display_writeStringOnLine(&display, 1, state_dino.pos + 15 - 4, " OVER", 5);
+		  }
+
+		  if(!tryReadInput(&input, 1, true)) continue;
 
 		  if(input == ' ') {
 			  CHANGE_STATE(NAV_MENU);
