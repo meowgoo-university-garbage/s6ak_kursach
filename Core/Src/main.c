@@ -34,11 +34,23 @@
 /* USER CODE BEGIN PTD */
 
 typedef enum {
-	NAV_TYPERACER_INIT,
+	NAV_MENU,
+
 	NAV_TYPERACER_SETTINGS,
 	NAV_TYPERACER_PLAYING,
 	NAV_TYPERACER_RESULTS,
 } NavState;
+
+typedef struct {
+	bool started;
+	bool displayedSelection;
+	int gameSelected;
+} MenuState;
+
+typedef struct {
+	char *name;
+	NavState initState;
+} MenuGame;
 
 typedef struct {
 	bool moving;
@@ -160,7 +172,7 @@ int main(void)
   HAL_TIM_Base_Start(sensor.timer);
 
 
-  NavState navState = NAV_TYPERACER_PLAYING;
+  NavState navState = NAV_MENU;
 
   TyperacerSettings settings_tr = {
 		  .moving = false,
@@ -169,7 +181,15 @@ int main(void)
   };
   TyperacerState state_tr = {0};
 
+  MenuState state_menu = {0};
 
+  MenuGame games[] = {
+		  {
+				.name = "Typeracer",
+				.initState = NAV_TYPERACER_PLAYING,
+		  },
+  };
+  int gameCount = sizeof(games) / sizeof(MenuGame);
 
 
   extern uint8_t CDC_buffer[1024];
@@ -187,14 +207,91 @@ int main(void)
 	  bool justChangedState = firstState;
 	  firstState = false;
 
+#define CHANGE_STATE(state) do { \
+		  navState = state; \
+		  justChangedState = true; \
+		  goto changeState; \
+  } while(0)
+
 	  changeState:
 	  switch(navState) {
+	  case NAV_MENU:
+		  if(justChangedState) {
+			  display_instruction_displayOnOffControl(&display, true, false, false);
+			  state_menu.displayedSelection = false;
+		  }
+
+		  if(!state_menu.displayedSelection) {
+			  display_instruction_clearDisplay(&display);
+
+			  if(!state_menu.started) {
+				  char buffer[256];
+				  int len;
+				  len = sprintf(buffer, "AbobaGameStation");
+	  			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_0_MIN);
+	  			  display_writeString(&display, buffer, len);
+				  len = sprintf(buffer, "<SPACE> TO START");
+	  			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_1_MIN);
+	  			  display_writeString(&display, buffer, len);
+			  }
+			  else {
+				  char buffer[256];
+				  int len;
+				  len = sprintf(buffer, "%s", games[state_menu.gameSelected]);
+	  			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_0_MIN);
+	  			  display_writeString(&display, buffer, len);
+				  len = sprintf(buffer, "  <    %d/%d   >  ", state_menu.gameSelected + 1, gameCount);
+	  			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_1_MIN);
+	  			  display_writeString(&display, buffer, len);
+			  }
+
+			  state_menu.displayedSelection = true;
+		  }
+
+		  if(!CDC_ready) {
+			  continue;
+		  }
+		  CDC_ready = false;
+
+		  if(!state_menu.started) {
+			  if(CDC_buffer[0] == ' ') {
+				  state_menu.started = true;
+
+				  // TODO: animation
+
+				  state_menu.displayedSelection = false;
+			  }
+
+			  continue;
+		  }
+
+		  if(0){}
+		  else if(CDC_buffer[0] == '<') {
+			  state_menu.gameSelected -= 1;
+			  state_menu.displayedSelection = false;
+		  }
+		  else if(CDC_buffer[0] == '>') {
+			  state_menu.gameSelected += 1;
+			  state_menu.displayedSelection = false;
+		  }
+		  else if(CDC_buffer[0] == ' ') {
+			  CHANGE_STATE(games[state_menu.gameSelected].initState);
+		  }
+
+		  if(state_menu.gameSelected < 0) {
+			  state_menu.gameSelected += gameCount;
+		  }
+		  else if(state_menu.gameSelected >= gameCount) {
+			  state_menu.gameSelected -= gameCount;
+		  }
+		  break;
 	  case NAV_TYPERACER_PLAYING:
   		  if(justChangedState) {
   			  if(settings_tr.moving && settings_tr.overwrite) {
   				  settings_tr.overwrite = false;
   			  }
 
+			  display_instruction_displayOnOffControl(&display, true, true, true);
 			  display_instruction_entryModeSet(&display, true, false);
 
   			  state_tr = (TyperacerState){0};
@@ -218,9 +315,7 @@ int main(void)
   		  }
 
   		  if(state_tr.charactersTyped >= state_tr.textLength) {
-  			  navState = NAV_TYPERACER_RESULTS;
-  			  justChangedState = true;
-  			  goto changeState;
+  			  CHANGE_STATE(NAV_TYPERACER_RESULTS);
   		  }
 
   		  if(!settings_tr.moving && !state_tr.displayedNewLine) {
@@ -311,8 +406,11 @@ int main(void)
 					  }
 		  		  }
 		  		  else {
-		  			  if(settings_tr.overwrite && state_tr.textConsumed < state_tr.textLength) {
-	  		  			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_0_MIN + 1 + state_tr.currentShift);
+#define OVERWRITE_DELAY 2
+		  			  if(settings_tr.overwrite && state_tr.textConsumed < state_tr.textLength && state_tr.charactersTyped > OVERWRITE_DELAY) {
+		  				  int index = (state_tr.currentShift - OVERWRITE_DELAY + (DISPLAY_VISIBLE_LINE_LEN - 2)) % (DISPLAY_VISIBLE_LINE_LEN - 2);
+
+	  		  			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_0_MIN + 1 + index);
 	  		  			  display_writeChar(&display, state_tr.text[state_tr.textConsumed]);
 	  		  			  state_tr.textConsumed += 1;
 
@@ -340,10 +438,12 @@ int main(void)
 		  		  }
 
 		  	  }
+		  break;
 	  case NAV_TYPERACER_RESULTS:
 		  if(justChangedState) {
 			  display_instruction_clearDisplay(&display);
 			  display_instruction_entryModeSet(&display, true, false);
+			  display_instruction_displayOnOffControl(&display, true, false, false);
 
 			  char buffer[256];
 			  size_t len;
@@ -354,6 +454,19 @@ int main(void)
   			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_1_MIN);
   			  display_writeString(&display, buffer, len);
 		  }
+
+
+		  if(!CDC_ready) {
+			  continue;
+		  }
+		  CDC_ready = 0;
+
+
+		  if(CDC_buffer[0] == ' ') {
+			  CHANGE_STATE(NAV_MENU);
+		  }
+
+		  break;
 	  }
 
 
