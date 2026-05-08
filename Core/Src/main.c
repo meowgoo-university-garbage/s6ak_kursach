@@ -33,6 +33,13 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
+typedef enum {
+	NAV_TYPERACER_INIT,
+	NAV_TYPERACER_SETTINGS,
+	NAV_TYPERACER_PLAYING,
+	NAV_TYPERACER_RESULTS,
+} NavState;
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -42,6 +49,9 @@ extern void initialise_monitor_handles();
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
+
+#define min(a, b) ((a) < (b) ? (a) : (b))
+#define max(a, b) ((a) > (b) ? (a) : (b))
 
 /* USER CODE END PM */
 
@@ -144,6 +154,7 @@ int main(void)
 		  "It was a LEGEND of LIGHT. "
 		  "It was a LEGEND of DARK. "
 		  "This is the legend of DELTA RUNE.";
+  int textLength = strlen(text);
   uint32_t textConsumed = 0;
 
   display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_0_MIN);
@@ -172,6 +183,10 @@ int main(void)
 	  CDC_ready = 0;
 
 	  for(int i = 0; i < CDC_length; i++) {
+		  if(textConsumed == textLength) {
+			  break;
+		  }
+
 		  if(CDC_buffer[i] != text[charactersTyped]) {
 			  continue;
 		  }
@@ -193,8 +208,17 @@ int main(void)
 
 			  display_instruction_entryModeSet(&display, true, false);
 
-			  display_writeStringOnLine(&display, 0, hiddenStart, &text[textConsumed], len);
-			  textConsumed += len;
+			  {
+				  int textRemaining = textLength - textConsumed;
+				  int textLength = min(len, textRemaining);
+				  int spaceLength = len - textLength;
+				  display_writeStringOnLine(&display, 0, hiddenStart, &text[textConsumed], textLength);
+				  textConsumed += textLength;
+				  int pos = (hiddenStart + textLength) % DISPLAY_LINE_LEN;
+				  for(int i = 0; i < spaceLength; i++)  {
+					  pos = display_writeCharOnLine(&display, 0, pos, ' ', true);
+				  }
+			  }
 
 			  int pos = hiddenStart;
 			  display_instruction_setDisplayRamAddress(&display, pos + DISPLAY_LINE_1_MIN);
