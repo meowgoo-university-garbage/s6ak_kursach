@@ -42,6 +42,7 @@ typedef enum {
 
 typedef struct {
 	bool moving;
+	bool overwrite;
 	uint8_t text;
 } TyperacerSettings;
 
@@ -163,6 +164,7 @@ int main(void)
 
   TyperacerSettings settings_tr = {
 		  .moving = false,
+		  .overwrite = true,
 		  .text = 0,
   };
   TyperacerState state_tr = {0};
@@ -189,6 +191,10 @@ int main(void)
 	  switch(navState) {
 	  case NAV_TYPERACER_PLAYING:
   		  if(justChangedState) {
+  			  if(settings_tr.moving && settings_tr.overwrite) {
+  				  settings_tr.overwrite = false;
+  			  }
+
 			  display_instruction_entryModeSet(&display, true, false);
 
   			  state_tr = (TyperacerState){0};
@@ -305,10 +311,31 @@ int main(void)
 					  }
 		  		  }
 		  		  else {
+		  			  if(settings_tr.overwrite && state_tr.textConsumed < state_tr.textLength) {
+	  		  			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_0_MIN + 1 + state_tr.currentShift);
+	  		  			  display_writeChar(&display, state_tr.text[state_tr.textConsumed]);
+	  		  			  state_tr.textConsumed += 1;
+
+	  		  			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_1_MIN + 2 + state_tr.currentShift);
+		  			  }
+
 		  			  state_tr.currentShift += 1;
+
 		  			  if(state_tr.currentShift >= (DISPLAY_VISIBLE_LINE_LEN - 2)) {
-		  				  state_tr.displayedNewLine = false;
 		  				  state_tr.currentShift = 0;
+
+		  				  if(!settings_tr.overwrite) {
+			  				  state_tr.displayedNewLine = false;
+		  				  }
+		  				  else {
+		  					  char buffer[256];
+		  					  int len;
+		  					  len = sprintf(buffer, "[%-*s]", DISPLAY_VISIBLE_LINE_LEN - 2, "");
+		  		  			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_1_MIN);
+		  		  			  display_writeString(&display, buffer, len);
+
+		  		  			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_1_MIN + 1);
+		  				  }
 		  			  }
 		  		  }
 
