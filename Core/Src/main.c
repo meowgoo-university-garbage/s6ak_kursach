@@ -94,6 +94,13 @@ I2C_HandleTypeDef hi2c1;
 TIM_HandleTypeDef htim4;
 
 /* USER CODE BEGIN PV */
+
+
+extern uint8_t CDC_buffer[1024];
+extern size_t CDC_index_lo;
+extern size_t CDC_index_hi;
+
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -107,6 +114,36 @@ static void MX_TIM4_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+size_t getInputAmount() {
+	if(CDC_index_lo <= CDC_index_hi) {
+		return (CDC_index_hi - CDC_index_lo);
+	}
+	else {
+		return (sizeof(CDC_buffer) - CDC_index_lo) + (CDC_index_hi);
+	}
+}
+
+bool tryReadInput(uint8_t *dst, int amount, bool consume) {
+	if(getInputAmount() < amount) return false;
+	size_t preserve = CDC_index_lo;
+
+	for(int i = 0; i < amount; i++) {
+		dst[i] = CDC_buffer[CDC_index_lo];
+		CDC_index_lo += 1;
+
+		if(CDC_index_lo >= sizeof(CDC_buffer)) {
+			CDC_index_lo = 0;
+		}
+	}
+
+	if(!consume) {
+		CDC_index_lo = preserve;
+	}
+
+	return true;
+}
+
 
 /* USER CODE END 0 */
 
@@ -192,10 +229,6 @@ int main(void)
   int gameCount = sizeof(games) / sizeof(MenuGame);
 
 
-  extern uint8_t CDC_buffer[1024];
-  extern uint32_t CDC_length;
-  extern uint8_t CDC_ready;
-
   bool firstState = true;
 
   /* USER CODE END 2 */
@@ -212,6 +245,8 @@ int main(void)
 		  justChangedState = true; \
 		  goto changeState; \
   } while(0)
+
+	  char input;
 
 	  changeState:
 	  switch(navState) {
@@ -248,13 +283,12 @@ int main(void)
 			  state_menu.displayedSelection = true;
 		  }
 
-		  if(!CDC_ready) {
-			  continue;
-		  }
-		  CDC_ready = false;
+
+		  if(!tryReadInput((uint8_t *)&input, 1, true)) continue;
+
 
 		  if(!state_menu.started) {
-			  if(CDC_buffer[0] == ' ') {
+			  if(input == ' ') {
 				  state_menu.started = true;
 
 				  // TODO: animation
@@ -266,15 +300,15 @@ int main(void)
 		  }
 
 		  if(0){}
-		  else if(CDC_buffer[0] == '<') {
+		  else if(input == '<') {
 			  state_menu.gameSelected -= 1;
 			  state_menu.displayedSelection = false;
 		  }
-		  else if(CDC_buffer[0] == '>') {
+		  else if(input == '>') {
 			  state_menu.gameSelected += 1;
 			  state_menu.displayedSelection = false;
 		  }
-		  else if(CDC_buffer[0] == ' ') {
+		  else if(input == ' ') {
 			  CHANGE_STATE(games[state_menu.gameSelected].initState);
 		  }
 
@@ -341,22 +375,18 @@ int main(void)
   			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_1_MIN + 1);
   		  }
 
-		  if(!CDC_ready) {
-			  continue;
-		  }
-		  CDC_ready = 0;
 
-		  for(int i = 0; i < CDC_length; i++) {
+		  while(tryReadInput(&input, 1, true)) {
 		  		  if(state_tr.charactersTyped == state_tr.textLength) {
 		  			  break;
 		  		  }
 
-		  		  if(CDC_buffer[i] != state_tr.text[state_tr.charactersTyped]) {
+		  		  if(input != state_tr.text[state_tr.charactersTyped]) {
 		  			  state_tr.mistakeCount += 1;
 		  			  continue;
 		  		  }
 
-		  		  display_writeChar(&display, CDC_buffer[i]);
+		  		  display_writeChar(&display, input);
 		  		  state_tr.charactersTyped += 1;
 
 		  		  if(settings_tr.moving) {
@@ -456,13 +486,10 @@ int main(void)
 		  }
 
 
-		  if(!CDC_ready) {
-			  continue;
-		  }
-		  CDC_ready = 0;
+		  if(!tryReadInput(&input, 1, true)) continue;
 
 
-		  if(CDC_buffer[0] == ' ') {
+		  if(input == ' ') {
 			  CHANGE_STATE(NAV_MENU);
 		  }
 
@@ -617,12 +644,23 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOH_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_SET);
+
+  /*Configure GPIO pin : PD12 */
+  GPIO_InitStruct.Pin = GPIO_PIN_12;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PC7 */
   GPIO_InitStruct.Pin = GPIO_PIN_7;

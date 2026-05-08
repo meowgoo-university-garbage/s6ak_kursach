@@ -110,9 +110,10 @@ extern USBD_HandleTypeDef hUsbDeviceFS;
 /* USER CODE BEGIN EXPORTED_VARIABLES */
 
 // NOTE: make it ring buffer?
+
 uint8_t CDC_buffer[1024];
-uint32_t CDC_length;
-uint8_t CDC_ready = 0;
+size_t CDC_index_lo = 0;
+size_t CDC_index_hi = 0;
 uint8_t CDC_connected = 0;
 
 
@@ -275,9 +276,15 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 	  CDC_connected = 1;
   }
   else if(CDC_connected) {
-	  memcpy(CDC_buffer, Buf, *Len);
-	  CDC_length = *Len;
-	  CDC_ready = 1;
+	  // NOTE: i REALLY dont want to waste 5 hours on off by one errors, and we usually send 1 byte at a time regardless
+	  for(int i = 0; i < *Len; i++) {
+		  CDC_buffer[CDC_index_hi] = Buf[i];
+		  CDC_index_hi += 1;
+
+		  if(CDC_index_hi >= sizeof(CDC_buffer)) {
+			  CDC_index_hi = 0;
+		  }
+	  }
   }
 
   USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
