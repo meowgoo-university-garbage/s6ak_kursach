@@ -42,6 +42,9 @@ typedef enum {
 
 	NAV_DINO_PLAYING,
 	NAV_DINO_RESULTS,
+
+	NAV_MATH_PLAYING,
+	NAV_MATH_RESULTS,
 } NavState;
 
 typedef struct {
@@ -93,6 +96,16 @@ typedef struct {
 	int pos;
 	int frame;
 } DinoState;
+
+typedef struct {
+	uint8_t task_total;
+	uint8_t task_done;
+	uint8_t task_correct;
+
+	uint8_t correctAnswer;
+	uint8_t selection;
+	bool displayedTask;
+} MathState;
 
 /* USER CODE END PTD */
 
@@ -243,7 +256,7 @@ int main(void)
   };
   TyperacerState state_tr = {0};
   DinoState state_dino = {0};
-
+  MathState state_math = {0};
   MenuState state_menu = {0};
 
   char *texts[] = {
@@ -272,7 +285,11 @@ int main(void)
 		  {
 				.name = "Dinosaur",
 				.initState = NAV_DINO_PLAYING,
-		  }
+		  },
+		  {
+				.name = "Math quiz",
+				.initState = NAV_MATH_PLAYING,
+		  },
   };
   int gameCount = sizeof(games) / sizeof(MenuGame);
 
@@ -698,6 +715,187 @@ int main(void)
 			  CHANGE_STATE(NAV_MENU);
 		  }
 
+		  break;
+
+
+
+
+
+
+
+	  case NAV_MATH_PLAYING:
+		  if(justChangedState) {
+			  srand(__HAL_TIM_GET_COUNTER(&htim2));
+
+	  		  __HAL_TIM_SET_COUNTER(&htim2, 0);
+
+			  display_instruction_entryModeSet(&display, true, false);
+			  display_instruction_displayOnOffControl(&display, true, true, true);
+
+			  state_math = (MathState){
+				  .task_total = 5,
+			  };
+		  }
+
+		  if(state_math.task_done >= state_math.task_total) {
+			  CHANGE_STATE(NAV_MATH_RESULTS);
+		  }
+
+#define MATH_SUM 0
+#define MATH_SUB 1
+#define MATH_MUL 2
+#define MATH_DIV 3
+
+		  char opChars[4] = "+-*/";
+
+		  if(!state_math.displayedTask) {
+			  state_math.displayedTask = true;
+
+			  int op1, op2, a, b, c, x, y;
+
+			  while(true) {
+				  op1 = rand() % 4;
+				  op2 = rand() % 4;
+
+				  a = rand() % 100;
+				  b = rand() % 100;
+				  c = rand() % 100;
+
+				  if((op2 / 2) > (op1 / 2)) {
+					  switch(op2) {
+					  case MATH_SUM: y = b + c; break;
+					  case MATH_SUB: y = b - c; break;
+					  case MATH_MUL: y = b * c; break;
+					  case MATH_DIV: y = b / c; if(c * y != b) continue; break;
+					  }
+
+					  switch(op1) {
+					  case MATH_SUM: x = a + y; break;
+					  case MATH_SUB: x = a - y; break;
+					  case MATH_MUL: x = a * y; break;
+					  case MATH_DIV: x = a / y; if(y * x != a) continue; break;
+					  }
+				  }
+				  else {
+					  switch(op1) {
+					  case MATH_SUM: y = a + b; break;
+					  case MATH_SUB: y = a - b; break;
+					  case MATH_MUL: y = a * b; break;
+					  case MATH_DIV: y = a / b; if(b * y != a) continue; break;
+					  }
+
+					  switch(op2) {
+					  case MATH_SUM: x = y + c; break;
+					  case MATH_SUB: x = y - c; break;
+					  case MATH_MUL: x = y * c; break;
+					  case MATH_DIV: x = y / c; if(c * x != y) continue; break;
+					  }
+				  }
+
+				  if(x < 0) continue;
+				  if(x < 1000) break;
+			  }
+
+			  display_instruction_clearDisplay(&display);
+
+			  char buffer[256];
+			  int len;
+
+			  len = sprintf(buffer, "%d. %d %c %d %c %d", state_math.task_done + 1, a, opChars[op1], b, opChars[op2], c);
+  			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_0_MIN);
+  			  display_writeString(&display, buffer, len);
+
+  			  state_math.correctAnswer = rand() % 4;
+  			  int answers[4] = {0};
+  			  answers[state_math.correctAnswer] = x;
+
+
+  			  for(int i = 0; i < 4; i++) {
+  				  if(i == state_math.correctAnswer) {
+  					  len = sprintf(buffer, "%d", x);
+  		  			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_1_MIN + i * 4);
+  		  			  display_writeString(&display, buffer, len);
+  		  			  continue;
+  				  }
+
+  				  while(true) {
+  					  loopmath:
+  					  y = x + ((rand() % 150) - 75);
+  					  if(y == x) continue;
+  					  if(y >= 1000) continue;
+  					  if(y < 0) continue;
+  					  for(int j = 0; j < i; j++) {
+  						  if(answers[j] == y) goto loopmath;
+  					  }
+
+  					  answers[i] = y;
+
+  					  len = sprintf(buffer, "%d", y);
+  		  			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_1_MIN + i * 4);
+  		  			  display_writeString(&display, buffer, len);
+
+  		  			  break;
+  				  }
+  			  }
+
+
+  			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_1_MIN);
+  			  state_math.selection = 0;
+		  }
+
+
+		  if(!tryReadInput(&input, 1, true)) continue;
+
+		  if(input == ' ') {
+			  state_math.displayedTask = false;
+
+			  state_math.task_done += 1;
+			  state_math.task_correct += (state_math.correctAnswer == state_math.selection);
+		  }
+		  else if(input == '<') {
+			  state_math.selection -= 1;
+		  }
+		  else if(input == '>') {
+			  state_math.selection += 1;
+		  }
+
+		  if(state_math.selection < 0) state_math.selection += 4;
+		  if(state_math.selection >= 4) state_math.selection -= 4;
+
+
+		  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_1_MIN + state_math.selection * 4);
+
+
+		  break;
+
+	  case NAV_MATH_RESULTS:
+		  if(justChangedState) {
+			  display_instruction_clearDisplay(&display);
+			  display_instruction_entryModeSet(&display, true, false);
+			  display_instruction_displayOnOffControl(&display, true, false, false);
+
+			  char buffer[256];
+			  size_t len;
+			  int time = __HAL_TIM_GET_COUNTER(&htim2);
+
+			  int sec = time / 1000000;
+			  int sec_decimal = (time - (sec * 1000000)) / 100000;
+
+			  len = sprintf(buffer, "GG! Time: %d.%ds", sec, sec_decimal);
+  			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_0_MIN);
+  			  display_writeString(&display, buffer, len);
+			  len = sprintf(buffer, "Correct: %d/%d", state_math.task_correct, state_math.task_total);
+  			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_1_MIN);
+  			  display_writeString(&display, buffer, len);
+		  }
+
+
+		  if(!tryReadInput(&input, 1, true)) continue;
+
+
+		  if(input == ' ') {
+			  CHANGE_STATE(NAV_MENU);
+		  }
 		  break;
 	  }
 
