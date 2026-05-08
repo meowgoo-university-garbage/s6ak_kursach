@@ -55,6 +55,8 @@ typedef struct {
 	int charactersTyped;
 	int hiddenStart;
 
+	bool displayedNewLine;
+
 	int mistakeCount;
 } TyperacerState;
 
@@ -159,27 +161,20 @@ int main(void)
 
   NavState navState = NAV_TYPERACER_PLAYING;
 
+  TyperacerSettings settings_tr = {
+		  .moving = false,
+		  .text = 0,
+  };
   TyperacerState state_tr = {0};
 
-  state_tr.text =
-		  "Once upon a time, a LEGEND was whispered among shadows. "
-		  "It was a LEGEND of HOPE. "
-		  "It was a LEGEND of DREAMS. "
-		  "It was a LEGEND of LIGHT. "
-		  "It was a LEGEND of DARK. "
-		  "This is the legend of DELTA RUNE.";
-  //state_tr.text = "amogus";
-  state_tr.textLength = strlen(state_tr.text);
 
-  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_0_MIN);
-  display_writeString(&display, state_tr.text, min(state_tr.textLength, DISPLAY_LINE_LEN));
-  state_tr.textConsumed += min(state_tr.textLength, DISPLAY_LINE_LEN);
 
-  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_1_MIN);
 
   extern uint8_t CDC_buffer[1024];
   extern uint32_t CDC_length;
   extern uint8_t CDC_ready;
+
+  bool firstState = true;
 
   /* USER CODE END 2 */
 
@@ -187,19 +182,62 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  bool justChangedState = false;
+	  bool justChangedState = firstState;
+	  firstState = false;
 
 	  changeState:
 	  switch(navState) {
 	  case NAV_TYPERACER_PLAYING:
-		  if(justChangedState) {
+  		  if(justChangedState) {
+			  display_instruction_entryModeSet(&display, true, false);
 
-		  }
+  			  state_tr = (TyperacerState){0};
+  			  state_tr.text =
+  					  "Once upon a time, a LEGEND was whispered among shadows. "
+  					  "It was a LEGEND of HOPE. "
+  					  "It was a LEGEND of DREAMS. "
+  					  "It was a LEGEND of LIGHT. "
+  					  "It was a LEGEND of DARK. "
+  					  "This is the legend of DELTA RUNE.";
+  			  //state_tr.text = "amogus";
+  			  state_tr.textLength = strlen(state_tr.text);
+
+  			  if(settings_tr.moving) {
+  				  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_0_MIN);
+  				  display_writeString(&display, state_tr.text, min(state_tr.textLength, DISPLAY_LINE_LEN));
+  				  state_tr.textConsumed += min(state_tr.textLength, DISPLAY_LINE_LEN);
+
+  				  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_1_MIN);
+  			  }
+  		  }
 
   		  if(state_tr.charactersTyped >= state_tr.textLength) {
   			  navState = NAV_TYPERACER_RESULTS;
   			  justChangedState = true;
   			  goto changeState;
+  		  }
+
+  		  if(!settings_tr.moving && !state_tr.displayedNewLine) {
+  			  state_tr.displayedNewLine = true;
+
+			  display_instruction_clearDisplay(&display);
+
+			  char buffer[256];
+			  int len;
+			  len = sprintf(buffer, "[%-.*s]", DISPLAY_VISIBLE_LINE_LEN - 2, &state_tr.text[state_tr.textConsumed]);
+  			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_0_MIN);
+  			  display_writeString(&display, buffer, len);
+
+			  state_tr.textConsumed += (DISPLAY_VISIBLE_LINE_LEN - 2);
+			  if(state_tr.textConsumed > state_tr.textLength) {
+				  state_tr.textConsumed = state_tr.textLength;
+			  }
+
+			  len = sprintf(buffer, "[%-*s]", DISPLAY_VISIBLE_LINE_LEN - 2, "");
+  			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_1_MIN);
+  			  display_writeString(&display, buffer, len);
+
+  			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_1_MIN + 1);
   		  }
 
 		  if(!CDC_ready) {
@@ -209,9 +247,7 @@ int main(void)
 
 		  for(int i = 0; i < CDC_length; i++) {
 		  		  if(state_tr.charactersTyped == state_tr.textLength) {
-		  			  navState = NAV_TYPERACER_RESULTS;
-		  			  justChangedState = true;
-		  			  goto changeState;
+		  			  break;
 		  		  }
 
 		  		  if(CDC_buffer[i] != state_tr.text[state_tr.charactersTyped]) {
@@ -222,50 +258,60 @@ int main(void)
 		  		  display_writeChar(&display, CDC_buffer[i]);
 		  		  state_tr.charactersTyped += 1;
 
-		  		  if(state_tr.charactersTyped % DISPLAY_LINE_LEN == 0) {
-		  			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_1_MIN);
-		  		  }
+		  		  if(settings_tr.moving) {
+		  			  if(state_tr.charactersTyped % DISPLAY_LINE_LEN == 0) {
+						  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_1_MIN);
+					  }
 
-		  		  if(state_tr.shiftActivated) {
+					  if(state_tr.shiftActivated) {
+						  state_tr.currentShift += 1;
+						  state_tr.currentShift %= DISPLAY_LINE_LEN;
+					  }
+
+					  if((state_tr.currentShift + DISPLAY_VISIBLE_LINE_LEN) % DISPLAY_LINE_LEN == state_tr.hiddenStart) {
+						  int len = DISPLAY_LINE_LEN - DISPLAY_VISIBLE_LINE_LEN;
+
+						  display_instruction_entryModeSet(&display, true, false);
+
+						  {
+							  int textRemaining = state_tr.textLength - state_tr.textConsumed;
+							  int textLength = min(len, textRemaining);
+							  int spaceLength = len - textLength;
+							  display_writeStringOnLine(&display, 0, state_tr.hiddenStart, &state_tr.text[state_tr.textConsumed], textLength);
+							  state_tr.textConsumed += textLength;
+							  int pos = (state_tr.hiddenStart + textLength) % DISPLAY_LINE_LEN;
+							  for(int i = 0; i < spaceLength; i++)  {
+								  pos = display_writeCharOnLine(&display, 0, pos, ' ', true);
+							  }
+						  }
+
+						  int pos = state_tr.hiddenStart;
+						  display_instruction_setDisplayRamAddress(&display, pos + DISPLAY_LINE_1_MIN);
+						  for(int i = 0; i < len; i++)  {
+							  pos = display_writeCharOnLine(&display, 1, pos, ' ', true);
+						  }
+
+						  display_instruction_setDisplayRamAddress(&display, (state_tr.charactersTyped % DISPLAY_LINE_LEN) + DISPLAY_LINE_1_MIN);
+
+						  display_instruction_entryModeSet(&display, true, state_tr.shiftActivated);
+						  state_tr.hiddenStart = state_tr.currentShift;
+						  state_tr.hiddenStart %= DISPLAY_LINE_LEN;
+					  }
+
+					  if(!state_tr.shiftActivated && state_tr.charactersTyped > 4) {
+						  state_tr.shiftActivated = true;
+
+						  display_instruction_entryModeSet(&display, true, state_tr.shiftActivated);
+					  }
+		  		  }
+		  		  else {
 		  			  state_tr.currentShift += 1;
-		  			  state_tr.currentShift %= DISPLAY_LINE_LEN;
-		  		  }
-
-		  		  if((state_tr.currentShift + DISPLAY_VISIBLE_LINE_LEN) % DISPLAY_LINE_LEN == state_tr.hiddenStart) {
-		  			  int len = DISPLAY_LINE_LEN - DISPLAY_VISIBLE_LINE_LEN;
-
-		  			  display_instruction_entryModeSet(&display, true, false);
-
-		  			  {
-		  				  int textRemaining = state_tr.textLength - state_tr.textConsumed;
-		  				  int textLength = min(len, textRemaining);
-		  				  int spaceLength = len - textLength;
-		  				  display_writeStringOnLine(&display, 0, state_tr.hiddenStart, &state_tr.text[state_tr.textConsumed], textLength);
-		  				  state_tr.textConsumed += textLength;
-		  				  int pos = (state_tr.hiddenStart + textLength) % DISPLAY_LINE_LEN;
-		  				  for(int i = 0; i < spaceLength; i++)  {
-		  					  pos = display_writeCharOnLine(&display, 0, pos, ' ', true);
-		  				  }
+		  			  if(state_tr.currentShift >= (DISPLAY_VISIBLE_LINE_LEN - 2)) {
+		  				  state_tr.displayedNewLine = false;
+		  				  state_tr.currentShift = 0;
 		  			  }
-
-		  			  int pos = state_tr.hiddenStart;
-		  			  display_instruction_setDisplayRamAddress(&display, pos + DISPLAY_LINE_1_MIN);
-		  			  for(int i = 0; i < len; i++)  {
-		  				  pos = display_writeCharOnLine(&display, 1, pos, ' ', true);
-		  			  }
-
-		  			  display_instruction_setDisplayRamAddress(&display, (state_tr.charactersTyped % DISPLAY_LINE_LEN) + DISPLAY_LINE_1_MIN);
-
-		  			  display_instruction_entryModeSet(&display, true, state_tr.shiftActivated);
-		  			  state_tr.hiddenStart = state_tr.currentShift;
-		  			  state_tr.hiddenStart %= DISPLAY_LINE_LEN;
 		  		  }
 
-		  		  if(!state_tr.shiftActivated && state_tr.charactersTyped > 4) {
-		  			  state_tr.shiftActivated = true;
-
-		  			  display_instruction_entryModeSet(&display, true, state_tr.shiftActivated);
-		  		  }
 		  	  }
 	  case NAV_TYPERACER_RESULTS:
 		  if(justChangedState) {
