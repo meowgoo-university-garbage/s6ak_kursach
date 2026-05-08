@@ -54,6 +54,28 @@
 #define DISPLAY_LINE_SINGLE_LEN (DISPLAY_LINE_SINGLE_MAX - DISPLAY_LINE_SINGLE_MIN + 1)
 #define DISPLAY_LINE_LEN        (DISPLAY_LINE_0_MAX      - DISPLAY_LINE_0_MIN      + 1)
 
+#define DISPLAY_CUSTOM_0 0b000
+#define DISPLAY_CUSTOM_1 0b001
+#define DISPLAY_CUSTOM_2 0b010
+#define DISPLAY_CUSTOM_3 0b011
+#define DISPLAY_CUSTOM_4 0b100
+#define DISPLAY_CUSTOM_5 0b101
+#define DISPLAY_CUSTOM_6 0b110
+#define DISPLAY_CUSTOM_7 0b111
+
+#define DISPLAY_GLYPH8(a, b, c, d, e, f, g, h) \
+	(((uint64_t)(h) << (8 * 7)) | \
+	 ((uint64_t)(g) << (8 * 6)) | \
+	 ((uint64_t)(f) << (8 * 5)) | \
+	 ((uint64_t)(e) << (8 * 4)) | \
+	 ((uint64_t)(d) << (8 * 3)) | \
+	 ((uint64_t)(c) << (8 * 2)) | \
+	 ((uint64_t)(b) << (8 * 1)) | \
+	 ((uint64_t)(a) << (8 * 0)))
+
+#define DISPLAY_GLYPH(a, b, c, d, e, f, g) DISPLAY_GLYPH8(a, b, c, d, e, f, g, 0)
+
+
 typedef struct {
 	bool twoLinesInsteadOfOne;
 	bool tallFont;

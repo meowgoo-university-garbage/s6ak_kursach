@@ -45,6 +45,8 @@ typedef enum {
 
 	NAV_MATH_PLAYING,
 	NAV_MATH_RESULTS,
+
+	NAV_SENSOR,
 } NavState;
 
 typedef struct {
@@ -259,6 +261,9 @@ int main(void)
   MathState state_math = {0};
   MenuState state_menu = {0};
 
+
+  display_setCustomGlyph(&display, DISPLAY_CUSTOM_0, DISPLAY_GLYPH(0b10101, 0b01010, 0b10101, 0b01010, 0b10101, 0b01010, 0b10101));
+
   char *texts[] = {
 		  "Once upon a time, a LEGEND was whispered among shadows. "
 		  "It was a LEGEND of HOPE. "
@@ -308,6 +313,10 @@ int main(void)
 		  {
 				.name = "Math quiz",
 				.initState = NAV_MATH_PLAYING,
+		  },
+		  {
+				.name = "Sensor",
+				.initState = NAV_SENSOR,
 		  },
   };
   int gameCount = sizeof(games) / sizeof(MenuGame);
@@ -897,6 +906,55 @@ int main(void)
   			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_0_MIN);
   			  display_writeString(&display, buffer, len);
 			  len = sprintf(buffer, "Correct: %d/%d", state_math.task_correct, state_math.task_total);
+  			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_1_MIN);
+  			  display_writeString(&display, buffer, len);
+		  }
+
+
+		  if(!tryReadInput(&input, 1, true)) continue;
+
+
+		  if(input == ' ') {
+			  CHANGE_STATE(NAV_MENU);
+		  }
+		  break;
+
+
+
+
+
+
+
+
+
+
+
+
+	  case NAV_SENSOR:
+		  if(justChangedState) {
+			  display_instruction_clearDisplay(&display);
+			  display_instruction_entryModeSet(&display, true, false);
+			  display_instruction_displayOnOffControl(&display, true, false, false);
+
+			  __HAL_TIM_SET_COUNTER(&htim2, 5000000);
+
+		  }
+
+
+		  time = __HAL_TIM_GET_COUNTER(&htim2);
+
+		  if(time >= 2000000) {
+			  __HAL_TIM_SET_COUNTER(&htim2, 0);
+
+			  int sec = time / 1000000;
+			  int sec_decimal = (time - (sec * 1000000)) / 100000;
+
+			  SensorData data;
+			  sensor_read(&sensor, &data);
+			  len = sprintf(buffer, "Humidity: %d%%", data.rh_integral);
+  			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_0_MIN);
+  			  display_writeString(&display, buffer, len);
+			  len = sprintf(buffer, "Temperature: %dC", data.t_integral);
   			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_1_MIN);
   			  display_writeString(&display, buffer, len);
 		  }

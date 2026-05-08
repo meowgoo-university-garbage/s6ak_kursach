@@ -176,6 +176,16 @@ void display_writeStringOnLine(Display *display, int line, int pos, char *s, int
 }
 
 
+
+void display_setCustomGlyph(Display *display, uint8_t slot, uint64_t glyph) {
+	for(int i = 0; i < 8; i++) {
+		display_instruction_setCharacterRamAddress(&display, ((slot & 0b111) << 3) | i);
+		display_writeData(display, glyph & 0b00011111);
+		glyph >>= 8;
+	}
+}
+
+
 //void display_command_writeChar(Display *display, char c) {
 //	display_writeData(display, c);
 //}
