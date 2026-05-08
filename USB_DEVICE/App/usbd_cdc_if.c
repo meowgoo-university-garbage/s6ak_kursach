@@ -272,7 +272,7 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 {
   /* USER CODE BEGIN 6 */
 
-  if(strncmp(Buf, "CONNECTION_STRING", *Len) == 0) {
+  if(*Len == sizeof("CONNECTION_STRING") && strncmp(Buf, "CONNECTION_STRING", *Len) == 0) {
 	  CDC_connected = 1;
   }
   else if(CDC_connected) {

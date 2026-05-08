@@ -103,7 +103,7 @@ typedef struct {
 	uint8_t task_correct;
 
 	uint8_t correctAnswer;
-	uint8_t selection;
+	int8_t selection;
 	bool displayedTask;
 } MathState;
 
@@ -267,13 +267,32 @@ int main(void)
 		  "It was a LEGEND of DARK. "
 		  "This is the legend of DELTA RUNE.",
 
-		  "amogus",
+		  "Born into a world without anime, "
+		  "Where the sun doesn't shine, there's no sanity. "
+		  "We are left alone with these killing machines. "
+		  "We have no home, we have no dreams. "
+		  "Crushed under the weight of the mechanical demon, "
+		  "We are victims of fate from the power of semen.",
 
-		  "sus",
+		  "I think Skyblock at its core is the ultimate challenge in resource management. "
+		  "You spawn on a tiny island in an empty universe. "
+		  "All you have is a tree, some supplies and some dirt to stand on. "
+		  "You have to treasure EVERY dirt block, because if one falls into the void, "
+		  "there's no way to replace it and as you carefully navigate your absurd circumstance, "
+		  "you gain a new appreciation for the few things you have as you meticulously use them to their fullest effect. "
+		  "With nothing but some ice, lava and saplings you slowly transform this empty expanse into a world of your very own. "
+		  "Skyblock teaches us that no matter how ridiculous the odds may seem, "
+		  "within us resides the power to overcome these challenges and achieve something beautiful. "
+		  "That one day, we'll look back at where we started and be amazed "
+		  	  "by how far we've come.",
 
-		  "aboba",
+		  "amogus sus sus amogus amogus sus sus amogus",
 
-		  "gg",
+		  "I've seen your kind, time and time again. "
+		  "Every fleeing man must be caught. Every secret must be unearthed. "
+		  "Such is the conceit of the self-proclaimed seeker of truth. "
+		  "But in the end, you lack the stomach. "
+		  "For the agony you'll bring upon yourself...",
   };
 
 
@@ -314,6 +333,13 @@ int main(void)
 
 	  char input;
 
+	  char buffer[256];
+	  int len;
+
+	  if(tryReadInput(&input, 1, false) && input == '\e') {
+		  CHANGE_STATE(NAV_MENU);
+	  }
+
 	  changeState:
 	  switch(navState) {
 	  case NAV_MENU:
@@ -326,8 +352,6 @@ int main(void)
 			  display_instruction_clearDisplay(&display);
 
 			  if(!state_menu.started) {
-				  char buffer[256];
-				  int len;
 				  len = sprintf(buffer, "AbobaGameStation");
 	  			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_0_MIN);
 	  			  display_writeString(&display, buffer, len);
@@ -336,8 +360,6 @@ int main(void)
 	  			  display_writeString(&display, buffer, len);
 			  }
 			  else {
-				  char buffer[256];
-				  int len;
 				  len = sprintf(buffer, "%s", games[state_menu.gameSelected]);
 	  			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_0_MIN);
 	  			  display_writeString(&display, buffer, len);
@@ -427,8 +449,6 @@ int main(void)
 
 			  display_instruction_clearDisplay(&display);
 
-			  char buffer[256];
-			  int len;
 			  len = sprintf(buffer, "[%-.*s]", DISPLAY_VISIBLE_LINE_LEN - 2, &state_tr.text[state_tr.textConsumed]);
   			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_0_MIN);
   			  display_writeString(&display, buffer, len);
@@ -526,8 +546,6 @@ int main(void)
 			  				  state_tr.displayedNewLine = false;
 		  				  }
 		  				  else {
-		  					  char buffer[256];
-		  					  int len;
 		  					  len = sprintf(buffer, "[%-*s]", DISPLAY_VISIBLE_LINE_LEN - 2, "");
 		  		  			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_1_MIN);
 		  		  			  display_writeString(&display, buffer, len);
@@ -545,8 +563,6 @@ int main(void)
 			  display_instruction_entryModeSet(&display, true, false);
 			  display_instruction_displayOnOffControl(&display, true, false, false);
 
-			  char buffer[256];
-			  size_t len;
 			  int time = __HAL_TIM_GET_COUNTER(&htim2);
 
 			  int sec = time / 1000000;
@@ -766,14 +782,14 @@ int main(void)
 					  case MATH_SUM: y = b + c; break;
 					  case MATH_SUB: y = b - c; break;
 					  case MATH_MUL: y = b * c; break;
-					  case MATH_DIV: y = b / c; if(c * y != b) continue; break;
+					  case MATH_DIV: if(c == 0) continue; y = b / c; if(c * y != b) continue; break;
 					  }
 
 					  switch(op1) {
 					  case MATH_SUM: x = a + y; break;
 					  case MATH_SUB: x = a - y; break;
 					  case MATH_MUL: x = a * y; break;
-					  case MATH_DIV: x = a / y; if(y * x != a) continue; break;
+					  case MATH_DIV: if(y == 0) continue; x = a / y; if(y * x != a) continue; break;
 					  }
 				  }
 				  else {
@@ -781,14 +797,14 @@ int main(void)
 					  case MATH_SUM: y = a + b; break;
 					  case MATH_SUB: y = a - b; break;
 					  case MATH_MUL: y = a * b; break;
-					  case MATH_DIV: y = a / b; if(b * y != a) continue; break;
+					  case MATH_DIV: if(b == 0) continue; y = a / b; if(b * y != a) continue; break;
 					  }
 
 					  switch(op2) {
 					  case MATH_SUM: x = y + c; break;
 					  case MATH_SUB: x = y - c; break;
 					  case MATH_MUL: x = y * c; break;
-					  case MATH_DIV: x = y / c; if(c * x != y) continue; break;
+					  case MATH_DIV: if(c == 0) continue; x = y / c; if(c * x != y) continue; break;
 					  }
 				  }
 
@@ -798,8 +814,6 @@ int main(void)
 
 			  display_instruction_clearDisplay(&display);
 
-			  char buffer[256];
-			  int len;
 
 			  len = sprintf(buffer, "%d. %d %c %d %c %d", state_math.task_done + 1, a, opChars[op1], b, opChars[op2], c);
   			  display_instruction_setDisplayRamAddress(&display, DISPLAY_LINE_0_MIN);
@@ -874,8 +888,6 @@ int main(void)
 			  display_instruction_entryModeSet(&display, true, false);
 			  display_instruction_displayOnOffControl(&display, true, false, false);
 
-			  char buffer[256];
-			  size_t len;
 			  int time = __HAL_TIM_GET_COUNTER(&htim2);
 
 			  int sec = time / 1000000;
